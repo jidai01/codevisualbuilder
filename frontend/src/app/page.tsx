@@ -11,6 +11,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { TableNode } from '@/components/TableNode';
 import IDEPage from '@/components/IDEPage';
+import Walkthrough, { TourTrigger } from '@/components/Walkthrough';
 import { useCanvasStore } from '@/lib/store';
 
 const nodeTypes = {
@@ -106,6 +107,8 @@ function Canvas() {
 
   return (
     <div className="app-container">
+      <Walkthrough />
+
       <header className="header">
         <div className="header-controls">
           <h1>Code Visual Builder</h1>
@@ -130,6 +133,7 @@ function Canvas() {
             className="btn btn-blue"
             onClick={handleGenerate}
             disabled={generating}
+            data-tour="generate-button"
           >
             {generating ? 'Generating...' : 'Generate & Edit'}
           </button>
@@ -137,7 +141,7 @@ function Canvas() {
       </header>
 
       <div className="main-content">
-        <aside className="sidebar">
+        <aside className="sidebar" data-tour="node-palette">
           <h2>Drag &amp; Drop</h2>
           <div
             className="drag-item"
@@ -166,7 +170,7 @@ function Canvas() {
           </div>
         </aside>
 
-        <div className="canvas-container">
+        <div className="canvas-container" data-tour="canvas-area">
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -183,6 +187,8 @@ function Canvas() {
           </ReactFlow>
         </div>
       </div>
+
+      <TourTrigger />
     </div>
   );
 }

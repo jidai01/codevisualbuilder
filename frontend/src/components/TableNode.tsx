@@ -113,7 +113,11 @@ function TableNodeComponent({ id, data }: NodeProps) {
         </button>
       </div>
 
-      <Handle type="source" position={Position.Bottom} />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        data-tour="connection-handle"
+      />
     </div>
   );
 }

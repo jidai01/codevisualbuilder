@@ -61,6 +61,7 @@ export default function IDEPage({ uuid, projectName, onBack }: IDEPageProps) {
           )}
           <button
             onClick={() => setShowExport(!showExport)}
+            data-tour="export-button"
             className={`px-3 py-1.5 text-sm rounded font-medium transition-colors ${
               showExport
                 ? 'bg-purple-600 text-white'
