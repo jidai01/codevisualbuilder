@@ -1,0 +1,30 @@
+<?php
+
+namespace App\Filament\Resources\{{ class }}Resource\Pages;
+
+use App\Filament\Resources\{{ class }}Resource;
+use Filament\Actions;
+use Filament\Resources\Pages\ListRecords;
+use Filament\Resources\Components\Tab;
+use Illuminate\Database\Eloquent\Builder;
+
+class List{{ table_pascal }} extends ListRecords
+{
+    protected static string $resource = {{ class }}Resource::class;
+
+    protected static ?string $title = '{{ label }}';
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Actions\CreateAction::make(),
+        ];
+    }
+
+    public function getTabs(): array
+    {
+        return [
+            'all' => Tab::make(),
+        ];
+    }
+}
