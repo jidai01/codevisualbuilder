@@ -23,6 +23,8 @@
 /vendor
 database/database.sqlite
 storage/app/workspaces
+frontend/node_modules
+frontend/.next
 _ide_helper.php
 Homestead.json
 Homestead.yaml
