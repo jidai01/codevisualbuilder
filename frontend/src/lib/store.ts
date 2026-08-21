@@ -44,7 +44,14 @@ export interface BlueprintProject {
   }[];
 }
 
-interface CanvasState {
+export interface AppState {
+  view: 'canvas' | 'ide';
+  workspaceUuid: string | null;
+  setView: (view: 'canvas' | 'ide') => void;
+  setWorkspaceUuid: (uuid: string) => void;
+}
+
+interface CanvasState extends AppState {
   nodes: Node<TableNodeData>[];
   edges: Edge[];
   projectName: string;
@@ -62,6 +69,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   nodes: [],
   edges: [],
   projectName: 'MyProject',
+  view: 'canvas',
+  workspaceUuid: null,
+
+  setView: (view) => set({ view }),
+  setWorkspaceUuid: (uuid) => set({ workspaceUuid: uuid }),
 
   onNodesChange: (changes) => {
     set({ nodes: applyNodeChanges(changes, get().nodes) as Node<TableNodeData>[] });

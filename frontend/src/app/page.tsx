@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ReactFlow,
   Controls,
@@ -10,6 +10,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { TableNode } from '@/components/TableNode';
+import IDEPage from '@/components/IDEPage';
 import { useCanvasStore } from '@/lib/store';
 
 const nodeTypes = {
@@ -27,7 +28,14 @@ function Canvas() {
     projectName,
     setProjectName,
     generateBlueprint,
+    view,
+    setView,
+    workspaceUuid,
+    setWorkspaceUuid,
   } = useCanvasStore();
+
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
@@ -37,7 +45,6 @@ function Canvas() {
   const onDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault();
-
       const type = event.dataTransfer.getData('application/reactflow');
       if (typeof type === 'undefined' || !type) return;
 
@@ -51,12 +58,51 @@ function Canvas() {
     [addNode]
   );
 
-  const handleGenerate = () => {
-    const blueprint = generateBlueprint();
-    console.log('=== GLOBAL BLUEPRINT JSON ===');
-    console.log(JSON.stringify(blueprint, null, 2));
-    alert('Blueprint JSON logged to console! (F12)');
+  const handleGenerate = async () => {
+    if (nodes.length === 0) {
+      setError('Add at least one table to generate');
+      return;
+    }
+
+    setGenerating(true);
+    setError(null);
+
+    try {
+      const blueprint = generateBlueprint();
+
+      console.log('=== GLOBAL BLUEPRINT JSON ===');
+      console.log(JSON.stringify(blueprint, null, 2));
+
+      const res = await fetch('http://localhost:8000/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(blueprint),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setWorkspaceUuid(data.uuid);
+        setView('ide');
+      } else {
+        setError(data.error || data.errors ? JSON.stringify(data.errors) : 'Generation failed');
+      }
+    } catch (err) {
+      setError('Failed to connect to backend. Make sure Laravel is running on port 8000.');
+    } finally {
+      setGenerating(false);
+    }
   };
+
+  if (view === 'ide' && workspaceUuid) {
+    return (
+      <IDEPage
+        uuid={workspaceUuid}
+        projectName={projectName}
+        onBack={() => setView('canvas')}
+      />
+    );
+  }
 
   return (
     <div className="app-container">
@@ -71,14 +117,21 @@ function Canvas() {
           />
         </div>
         <div className="header-controls">
+          {error && (
+            <span className="text-red-400 text-sm mr-2">{error}</span>
+          )}
           <button
             className="btn btn-green"
             onClick={() => addNode({ x: 400, y: 200 })}
           >
             + Add Table
           </button>
-          <button className="btn btn-blue" onClick={handleGenerate}>
-            Generate Blueprint
+          <button
+            className="btn btn-blue"
+            onClick={handleGenerate}
+            disabled={generating}
+          >
+            {generating ? 'Generating...' : 'Generate & Edit'}
           </button>
         </div>
       </header>
@@ -101,6 +154,16 @@ function Canvas() {
             node header to rename. Add fields inside each node. Connect nodes by
             dragging from one handle to another.
           </p>
+          <div style={{ marginTop: 'auto', padding: '12px 0', borderTop: '1px solid #475569' }}>
+            <div style={{ fontSize: '11px', color: '#64748b', lineHeight: '1.6' }}>
+              <strong style={{ color: '#94a3b8' }}>Quick Guide:</strong><br />
+              1. Drag Table Node to canvas<br />
+              2. Click header to rename<br />
+              3. Add fields in each node<br />
+              4. Connect nodes for relations<br />
+              5. Click Generate &amp; Edit
+            </div>
+          </div>
         </aside>
 
         <div className="canvas-container">
@@ -124,7 +187,7 @@ function Canvas() {
   );
 }
 
-export default function CanvasPage() {
+export default function Home() {
   return (
     <ReactFlowProvider>
       <Canvas />
