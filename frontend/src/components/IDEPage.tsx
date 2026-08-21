@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import FileExplorer from '@/components/FileExplorer';
 import CodeEditor from '@/components/CodeEditor';
+import ExportPanel from '@/components/ExportPanel';
 
 interface IDEPageProps {
   uuid: string;
@@ -14,6 +15,7 @@ export default function IDEPage({ uuid, projectName, onBack }: IDEPageProps) {
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [openFiles, setOpenFiles] = useState<string[]>([]);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [showExport, setShowExport] = useState(false);
 
   const handleFileSelect = useCallback((path: string) => {
     setActiveFile(path);
@@ -57,6 +59,16 @@ export default function IDEPage({ uuid, projectName, onBack }: IDEPageProps) {
           {savedMessage && (
             <span className="text-green-400 text-sm animate-pulse">{savedMessage}</span>
           )}
+          <button
+            onClick={() => setShowExport(!showExport)}
+            className={`px-3 py-1.5 text-sm rounded font-medium transition-colors ${
+              showExport
+                ? 'bg-purple-600 text-white'
+                : 'bg-[#333] text-gray-400 hover:text-white hover:bg-[#444]'
+            }`}
+          >
+            Export
+          </button>
           <span className="text-xs text-gray-600">UUID: {uuid.slice(0, 8)}...</span>
         </div>
       </header>
@@ -106,6 +118,12 @@ export default function IDEPage({ uuid, projectName, onBack }: IDEPageProps) {
             onFileSaved={handleFileSaved}
           />
         </div>
+
+        {showExport && (
+          <div className="w-72 border-l border-[#333] p-4 overflow-y-auto bg-[#252526]">
+            <ExportPanel uuid={uuid} projectName={projectName} />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -28,7 +28,6 @@ class WorkspaceGenerator
             "{$workspacePath}/database/seeders",
             "{$workspacePath}/config",
             "{$workspacePath}/routes",
-            "{$workspacePath}/.git",
         ];
 
         foreach ($directories as $directory) {
