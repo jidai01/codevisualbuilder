@@ -1,11 +1,18 @@
 <?php
 
 use App\Http\Controllers\Api\ExportController;
+use App\Http\Controllers\Api\LogController;
 use App\Http\Controllers\Api\ProjectController;
+use App\Http\Controllers\Api\ServeController;
+use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Api\WorkspaceController;
+use App\Http\Controllers\Api\WorkspaceManagerController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/generate', [ProjectController::class, 'generate']);
+
+Route::get('/workspaces', [WorkspaceManagerController::class, 'index']);
+Route::get('/workspaces/{uuid}/blueprint', [WorkspaceManagerController::class, 'blueprint']);
 
 Route::prefix('workspace/{uuid}')->group(function () {
     Route::get('/tree', [WorkspaceController::class, 'tree']);
@@ -15,4 +22,9 @@ Route::prefix('workspace/{uuid}')->group(function () {
     Route::post('/git/init', [ExportController::class, 'gitInit']);
     Route::get('/git/status', [ExportController::class, 'gitStatus']);
     Route::get('/download', [ExportController::class, 'download']);
+
+    Route::post('/sync', [SyncController::class, 'sync']);
+    Route::post('/serve', [ServeController::class, 'serve']);
+    Route::post('/serve/stop', [ServeController::class, 'stop']);
+    Route::get('/logs', [LogController::class, 'logs']);
 });

@@ -120,12 +120,10 @@ export default function CodeEditor({ uuid, filePath, onFileSaved }: CodeEditorPr
 
   if (!filePath) {
     return (
-      <div className="h-full flex items-center justify-center bg-[#1e1e1e] text-gray-500">
-        <div className="text-center">
-          <div className="text-6xl mb-4">{'</>'}</div>
-          <div className="text-lg">Select a file to edit</div>
-          <div className="text-sm mt-2 text-gray-600">Ctrl+S to save</div>
-        </div>
+      <div className="code-editor-empty">
+        <div className="code-editor-empty-icon">{'</>'}</div>
+        <div className="code-editor-empty-text">Select a file to edit</div>
+        <div className="code-editor-empty-hint">Ctrl+S to save</div>
       </div>
     );
   }
@@ -133,41 +131,31 @@ export default function CodeEditor({ uuid, filePath, onFileSaved }: CodeEditorPr
   const filename = filePath.split('/').pop() || filePath;
 
   return (
-    <div className="h-full flex flex-col bg-[#1e1e1e]">
-      <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-[#333]">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-300 font-mono">{filePath}</span>
-            {modified && <span className="text-yellow-400 text-xs">●</span>}
-          </div>
+    <div className="code-editor">
+      <div className="code-editor-toolbar">
+        <div className="code-editor-toolbar-left">
+          <span className="code-editor-filename">{filePath}</span>
+          {modified && <span className="code-editor-modified">●</span>}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="code-editor-toolbar-right">
           {error && (
-            <span className="text-red-400 text-xs mr-2">{error}</span>
+            <span className="code-editor-error">{error}</span>
           )}
           <button
             onClick={handleSave}
             disabled={!modified || saving}
-            className={`px-3 py-1 text-sm rounded font-medium transition-colors ${
-              modified
-                ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                : 'bg-[#333] text-gray-600 cursor-not-allowed'
-            }`}
+            className={`code-editor-save-btn ${modified ? 'modified' : ''}`}
           >
             {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
       </div>
 
-      <div className="flex-1 min-h-0">
+      <div className="code-editor-content">
         {loading ? (
-          <div className="h-full flex items-center justify-center text-gray-500">
-            Loading...
-          </div>
+          <div className="code-editor-loading">Loading...</div>
         ) : error && error !== 'Binary file - cannot be edited' ? (
-          <div className="h-full flex items-center justify-center text-red-400">
-            {error}
-          </div>
+          <div className="code-editor-loading error">{error}</div>
         ) : (
           <Editor
             height="100%"

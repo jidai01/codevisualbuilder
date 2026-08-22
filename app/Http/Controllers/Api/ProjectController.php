@@ -21,7 +21,16 @@ class ProjectController extends Controller
         ]);
 
         try {
-            $result = $this->generator->generate($request->only(['project', 'entities']));
+            $blueprint = $request->only(['project', 'entities']);
+            $result = $this->generator->generate($blueprint);
+
+            if ($result['success']) {
+                $workspacePath = storage_path("app/workspaces/{$result['uuid']}");
+                file_put_contents(
+                    $workspacePath . '/blueprint.json',
+                    json_encode($blueprint, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+                );
+            }
 
             return response()->json($result);
         } catch (\Illuminate\Validation\ValidationException $e) {

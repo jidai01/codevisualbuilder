@@ -65,7 +65,7 @@ function TableNodeComponent({ id, data }: NodeProps) {
 
   return (
     <div className="table-node">
-      <Handle type="target" position={Position.Top} />
+      <Handle type="target" position={Position.Top} id="top" />
 
       <div className="table-node-header">
         {isEditing ? (
@@ -116,6 +116,7 @@ function TableNodeComponent({ id, data }: NodeProps) {
       <Handle
         type="source"
         position={Position.Bottom}
+        id="bottom"
         data-tour="connection-handle"
       />
     </div>

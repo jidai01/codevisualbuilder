@@ -40,42 +40,35 @@ export default function IDEPage({ uuid, projectName, onBack }: IDEPageProps) {
   }, [activeFile, openFiles]);
 
   return (
-    <div className="h-screen flex flex-col bg-[#1e1e1e]">
-      <header className="flex items-center justify-between px-4 py-2 bg-[#323233] border-b border-[#333]">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={onBack}
-            className="text-gray-400 hover:text-white text-sm flex items-center gap-1"
-          >
+    <div className="ide-page">
+      <header className="ide-header">
+        <div className="ide-header-left">
+          <button onClick={onBack} className="ide-back-btn">
             ← Back
           </button>
-          <div className="flex items-center gap-2">
-            <span className="text-blue-400 font-bold">CodeVisualBuilder</span>
-            <span className="text-gray-600">/</span>
-            <span className="text-white font-medium">{projectName}</span>
+          <div className="ide-breadcrumb">
+            <span className="ide-breadcrumb-project">CodeVisualBuilder</span>
+            <span className="ide-breadcrumb-sep">/</span>
+            <span className="ide-breadcrumb-name">{projectName}</span>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="ide-header-right">
           {savedMessage && (
-            <span className="text-green-400 text-sm animate-pulse">{savedMessage}</span>
+            <span className="ide-saved-msg">{savedMessage}</span>
           )}
           <button
             onClick={() => setShowExport(!showExport)}
             data-tour="export-button"
-            className={`px-3 py-1.5 text-sm rounded font-medium transition-colors ${
-              showExport
-                ? 'bg-purple-600 text-white'
-                : 'bg-[#333] text-gray-400 hover:text-white hover:bg-[#444]'
-            }`}
+            className={`ide-export-btn ${showExport ? 'active' : ''}`}
           >
             Export
           </button>
-          <span className="text-xs text-gray-600">UUID: {uuid.slice(0, 8)}...</span>
+          <span className="ide-uuid">UUID: {uuid.slice(0, 8)}...</span>
         </div>
       </header>
 
       {openFiles.length > 0 && (
-        <div className="flex bg-[#252526] border-b border-[#333] overflow-x-auto">
+        <div className="ide-tabs">
           {openFiles.map((path) => {
             const name = path.split('/').pop() || path;
             const isActive = activeFile === path;
@@ -84,16 +77,12 @@ export default function IDEPage({ uuid, projectName, onBack }: IDEPageProps) {
               <div
                 key={path}
                 onClick={() => setActiveFile(path)}
-                className={`flex items-center gap-2 px-3 py-2 text-sm cursor-pointer border-r border-[#333] min-w-0 ${
-                  isActive
-                    ? 'bg-[#1e1e1e] text-white'
-                    : 'bg-[#2d2d2d] text-gray-500 hover:text-gray-300'
-                }`}
+                className={`ide-tab ${isActive ? 'active' : ''}`}
               >
-                <span className="truncate max-w-[120px]">{name}</span>
+                <span className="ide-tab-name">{name}</span>
                 <button
                   onClick={(e) => closeTab(path, e)}
-                  className="text-gray-600 hover:text-white text-xs ml-1"
+                  className="ide-tab-close"
                 >
                   ×
                 </button>
@@ -103,8 +92,8 @@ export default function IDEPage({ uuid, projectName, onBack }: IDEPageProps) {
         </div>
       )}
 
-      <div className="flex flex-1 min-h-0">
-        <div className="w-64 border-r border-[#333] flex-shrink-0">
+      <div className="ide-main">
+        <div className="ide-sidebar">
           <FileExplorer
             uuid={uuid}
             onFileSelect={handleFileSelect}
@@ -112,7 +101,7 @@ export default function IDEPage({ uuid, projectName, onBack }: IDEPageProps) {
           />
         </div>
 
-        <div className="flex-1 min-w-0">
+        <div className="ide-editor-area">
           <CodeEditor
             uuid={uuid}
             filePath={activeFile}
@@ -121,7 +110,7 @@ export default function IDEPage({ uuid, projectName, onBack }: IDEPageProps) {
         </div>
 
         {showExport && (
-          <div className="w-72 border-l border-[#333] p-4 overflow-y-auto bg-[#252526]">
+          <div className="ide-export-panel">
             <ExportPanel uuid={uuid} projectName={projectName} />
           </div>
         )}

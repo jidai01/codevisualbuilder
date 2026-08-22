@@ -63,6 +63,56 @@ interface CanvasState extends AppState {
   removeNode: (nodeId: string) => void;
   setProjectName: (name: string) => void;
   generateBlueprint: () => BlueprintProject;
+  hydrateFromBlueprint: (uuid: string, blueprint: BlueprintProject) => void;
+  resetCanvas: () => void;
+}
+
+function buildNodesFromBlueprint(blueprint: BlueprintProject): Node<TableNodeData>[] {
+  const nodeCount = blueprint.entities.length;
+  const cols = Math.ceil(Math.sqrt(nodeCount));
+  const spacingX = 350;
+  const spacingY = 300;
+
+  return blueprint.entities.map((entity, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+
+    return {
+      id: uuidv4(),
+      type: 'tableNode',
+      position: { x: col * spacingX + 50, y: row * spacingY + 50 },
+      data: {
+        label: entity.name,
+        fields: entity.fields,
+        relations: entity.relations,
+      },
+    };
+  });
+}
+
+function buildEdgesFromNodes(nodes: Node<TableNodeData>[]): Edge[] {
+  const edges: Edge[] = [];
+
+  nodes.forEach((node) => {
+    const data = node.data as unknown as TableNodeData;
+    data.relations.forEach((rel) => {
+      if (rel.type === 'belongsTo') {
+        const targetNode = nodes.find(
+          (n) => (n.data as unknown as TableNodeData).label === rel.target
+        );
+        if (targetNode) {
+          edges.push({
+            id: uuidv4(),
+            source: targetNode.id,
+            target: node.id,
+            type: 'smoothstep',
+          });
+        }
+      }
+    });
+  });
+
+  return edges;
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
@@ -166,5 +216,28 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       project: projectName,
       entities,
     };
+  },
+
+  hydrateFromBlueprint: (uuid, blueprint) => {
+    const nodes = buildNodesFromBlueprint(blueprint);
+    const edges = buildEdgesFromNodes(nodes);
+
+    set({
+      workspaceUuid: uuid,
+      projectName: blueprint.project,
+      nodes,
+      edges,
+      view: 'canvas',
+    });
+  },
+
+  resetCanvas: () => {
+    set({
+      nodes: [],
+      edges: [],
+      projectName: 'MyProject',
+      view: 'canvas',
+      workspaceUuid: null,
+    });
   },
 }));

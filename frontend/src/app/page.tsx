@@ -1,202 +1,111 @@
 'use client';
 
-import { useCallback, useState } from 'react';
-import {
-  ReactFlow,
-  Controls,
-  Background,
-  BackgroundVariant,
-  ReactFlowProvider,
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
-import { TableNode } from '@/components/TableNode';
-import IDEPage from '@/components/IDEPage';
-import Walkthrough, { TourTrigger } from '@/components/Walkthrough';
-import { useCanvasStore } from '@/lib/store';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { v4 as uuidv4 } from 'uuid';
 
-const nodeTypes = {
-  tableNode: TableNode,
-};
+interface Workspace {
+  uuid: string;
+  project_name: string;
+  entities_count: number;
+  last_updated: number;
+}
 
-function Canvas() {
-  const {
-    nodes,
-    edges,
-    onNodesChange,
-    onEdgesChange,
-    onConnect,
-    addNode,
-    projectName,
-    setProjectName,
-    generateBlueprint,
-    view,
-    setView,
-    workspaceUuid,
-    setWorkspaceUuid,
-  } = useCanvasStore();
+export default function Dashboard() {
+  const router = useRouter();
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [generating, setGenerating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const onDragOver = useCallback((event: React.DragEvent) => {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'move';
+  useEffect(() => {
+    fetchWorkspaces();
   }, []);
 
-  const onDrop = useCallback(
-    (event: React.DragEvent) => {
-      event.preventDefault();
-      const type = event.dataTransfer.getData('application/reactflow');
-      if (typeof type === 'undefined' || !type) return;
-
-      const position = {
-        x: event.clientX - 300,
-        y: event.clientY - 50,
-      };
-
-      addNode(position);
-    },
-    [addNode]
-  );
-
-  const handleGenerate = async () => {
-    if (nodes.length === 0) {
-      setError('Add at least one table to generate');
-      return;
-    }
-
-    setGenerating(true);
-    setError(null);
-
+  const fetchWorkspaces = async () => {
     try {
-      const blueprint = generateBlueprint();
-
-      console.log('=== GLOBAL BLUEPRINT JSON ===');
-      console.log(JSON.stringify(blueprint, null, 2));
-
-      const res = await fetch('http://localhost:8000/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(blueprint),
-      });
-
+      const res = await fetch('http://localhost:8000/api/workspaces');
       const data = await res.json();
-
-      if (data.success) {
-        setWorkspaceUuid(data.uuid);
-        setView('ide');
-      } else {
-        setError(data.error || data.errors ? JSON.stringify(data.errors) : 'Generation failed');
-      }
+      setWorkspaces(data);
     } catch (err) {
-      setError('Failed to connect to backend. Make sure Laravel is running on port 8000.');
+      console.error('Failed to fetch workspaces:', err);
     } finally {
-      setGenerating(false);
+      setLoading(false);
     }
   };
 
-  if (view === 'ide' && workspaceUuid) {
-    return (
-      <IDEPage
-        uuid={workspaceUuid}
-        projectName={projectName}
-        onBack={() => setView('canvas')}
-      />
-    );
-  }
+  const handleCreateNew = () => {
+    router.push('/builder/new');
+  };
+
+  const handleOpenProject = (uuid: string) => {
+    router.push(`/builder/${uuid}`);
+  };
+
+  const formatDate = (timestamp: number) => {
+    const date = new Date(timestamp * 1000);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
 
   return (
-    <div className="app-container">
-      <Walkthrough />
-
-      <header className="header">
-        <div className="header-controls">
-          <h1>Code Visual Builder</h1>
-          <label>Project:</label>
-          <input
-            type="text"
-            value={projectName}
-            onChange={(e) => setProjectName(e.target.value)}
-          />
+    <div className="dashboard">
+      <header className="dashboard-header">
+        <div className="dashboard-header-left">
+          <h1 className="dashboard-logo">Code Visual Builder</h1>
+          <span className="dashboard-subtitle">Laravel Filament Project Generator</span>
         </div>
-        <div className="header-controls">
-          {error && (
-            <span className="text-red-400 text-sm mr-2">{error}</span>
-          )}
-          <button
-            className="btn btn-green"
-            onClick={() => addNode({ x: 400, y: 200 })}
-          >
-            + Add Table
-          </button>
-          <button
-            className="btn btn-blue"
-            onClick={handleGenerate}
-            disabled={generating}
-            data-tour="generate-button"
-          >
-            {generating ? 'Generating...' : 'Generate & Edit'}
-          </button>
-        </div>
+        <button className="dashboard-create-btn" onClick={handleCreateNew}>
+          + New Project
+        </button>
       </header>
 
-      <div className="main-content">
-        <aside className="sidebar" data-tour="node-palette">
-          <h2>Drag &amp; Drop</h2>
-          <div
-            className="drag-item"
-            draggable
-            onDragStart={(e) => {
-              e.dataTransfer.setData('application/reactflow', 'table');
-              e.dataTransfer.effectAllowed = 'move';
-            }}
-          >
-            Table Node
-          </div>
-          <p>
-            Drag a Table Node onto the canvas to create a new entity. Click the
-            node header to rename. Add fields inside each node. Connect nodes by
-            dragging from one handle to another.
-          </p>
-          <div style={{ marginTop: 'auto', padding: '12px 0', borderTop: '1px solid #475569' }}>
-            <div style={{ fontSize: '11px', color: '#64748b', lineHeight: '1.6' }}>
-              <strong style={{ color: '#94a3b8' }}>Quick Guide:</strong><br />
-              1. Drag Table Node to canvas<br />
-              2. Click header to rename<br />
-              3. Add fields in each node<br />
-              4. Connect nodes for relations<br />
-              5. Click Generate &amp; Edit
-            </div>
-          </div>
-        </aside>
-
-        <div className="canvas-container" data-tour="canvas-area">
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onDrop={onDrop}
-            onDragOver={onDragOver}
-            nodeTypes={nodeTypes}
-            fitView
-          >
-            <Controls />
-            <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
-          </ReactFlow>
+      <main className="dashboard-main">
+        <div className="dashboard-section-header">
+          <h2>Recent Projects</h2>
+          <span className="dashboard-count">{workspaces.length} project{workspaces.length !== 1 ? 's' : ''}</span>
         </div>
-      </div>
 
-      <TourTrigger />
+        {loading ? (
+          <div className="dashboard-loading">Loading projects...</div>
+        ) : workspaces.length === 0 ? (
+          <div className="dashboard-empty">
+            <div className="dashboard-empty-icon">📦</div>
+            <h3>No projects yet</h3>
+            <p>Create your first Laravel Filament project by clicking the button above.</p>
+            <button className="dashboard-create-btn large" onClick={handleCreateNew}>
+              + Create First Project
+            </button>
+          </div>
+        ) : (
+          <div className="dashboard-grid">
+            {workspaces.map((ws) => (
+              <div
+                key={ws.uuid}
+                className="dashboard-card"
+                onClick={() => handleOpenProject(ws.uuid)}
+              >
+                <div className="dashboard-card-header">
+                  <div className="dashboard-card-icon">📁</div>
+                  <span className="dashboard-card-uuid">{ws.uuid.slice(0, 8)}...</span>
+                </div>
+                <h3 className="dashboard-card-name">{ws.project_name}</h3>
+                <div className="dashboard-card-meta">
+                  <span>{ws.entities_count} entit{ws.entities_count !== 1 ? 'ies' : 'y'}</span>
+                  <span className="dashboard-card-dot">·</span>
+                  <span>{formatDate(ws.last_updated)}</span>
+                </div>
+                <div className="dashboard-card-footer">
+                  <span className="dashboard-card-action">Open →</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </main>
     </div>
-  );
-}
-
-export default function Home() {
-  return (
-    <ReactFlowProvider>
-      <Canvas />
-    </ReactFlowProvider>
   );
 }
