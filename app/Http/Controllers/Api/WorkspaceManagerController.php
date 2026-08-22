@@ -62,4 +62,39 @@ class WorkspaceManagerController extends Controller
 
         return response()->json($blueprint);
     }
+
+    public function destroy(string $uuid): JsonResponse
+    {
+        $workspacePath = storage_path("app/workspaces/{$uuid}");
+
+        if (!is_dir($workspacePath)) {
+            return response()->json(['error' => 'Workspace not found'], 404);
+        }
+
+        $trackerPath = storage_path('app/workspaces/.serve-tracker.json');
+        if (File::exists($trackerPath)) {
+            $tracker = json_decode(File::get($trackerPath), true) ?? [];
+            if (isset($tracker[$uuid])) {
+                $port = $tracker[$uuid]['port'];
+                if (str_starts_with(PHP_OS, 'WIN')) {
+                    $output = shell_exec("netstat -ano | findstr :{$port} | findstr LISTENING");
+                    if ($output) {
+                        preg_match_all('/\s(\d+)$/', $output, $matches);
+                        $pids = array_unique($matches[1] ?? []);
+                        foreach ($pids as $pid) {
+                            exec("taskkill /PID {$pid} /F 2>nul");
+                        }
+                    }
+                } else {
+                    exec("lsof -ti:{$port} | xargs kill -9 2>/dev/null");
+                }
+                unset($tracker[$uuid]);
+                File::put($trackerPath, json_encode($tracker, JSON_PRETTY_PRINT));
+            }
+        }
+
+        File::deleteDirectory($workspacePath);
+
+        return response()->json(['success' => true]);
+    }
 }

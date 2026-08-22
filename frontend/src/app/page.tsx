@@ -32,6 +32,18 @@ export default function Dashboard() {
     }
   };
 
+  const handleDeleteProject = async (e: React.MouseEvent, uuid: string) => {
+    e.stopPropagation();
+    if (!confirm('Delete this project? This cannot be undone.')) return;
+
+    try {
+      const res = await fetch(`http://localhost:8000/api/workspaces/${uuid}`, { method: 'DELETE' });
+      if (res.ok) setWorkspaces((prev) => prev.filter((w) => w.uuid !== uuid));
+    } catch (err) {
+      console.error('Failed to delete:', err);
+    }
+  };
+
   const handleCreateNew = () => {
     router.push('/builder/new');
   };
@@ -99,6 +111,9 @@ export default function Dashboard() {
                   <span>{formatDate(ws.last_updated)}</span>
                 </div>
                 <div className="dashboard-card-footer">
+                  <button className="dashboard-card-delete" onClick={(e) => handleDeleteProject(e, ws.uuid)}>
+                    Delete
+                  </button>
                   <span className="dashboard-card-action">Open →</span>
                 </div>
               </div>
