@@ -2,6 +2,7 @@
 
 import { useCallback, useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Swal from 'sweetalert2';
 import {
   ReactFlow,
   Controls,
@@ -125,9 +126,31 @@ function Canvas() {
     try {
       const res = await fetch(`http://localhost:8000/api/workspace/${workspaceUuid}/serve`, { method: 'POST' });
       const data = await res.json();
-      if (data.url) { setPreviewUrl(data.url); setActiveTab('preview'); }
-      else setError(data.error || 'Failed to start preview');
-    } catch { setError('Failed to start preview server'); }
+      if (data.url) {
+        setPreviewUrl(data.url);
+        setActiveTab('preview');
+      } else {
+        Swal.fire({
+          title: 'Preview Failed',
+          html: `<span style="color:#94a3b8;font-size:13px">${data.error || 'Unknown error'}</span>`,
+          icon: 'error',
+          confirmButtonColor: '#3b82f6',
+          background: '#1e293b',
+          color: '#e2e8f0',
+          customClass: { popup: 'swal-dark' },
+        });
+      }
+    } catch (err: any) {
+      Swal.fire({
+        title: 'Preview Failed',
+        html: `<span style="color:#94a3b8;font-size:13px">Could not connect to backend.<br>Make sure Laravel is running on port 8000.</span>`,
+        icon: 'error',
+        confirmButtonColor: '#3b82f6',
+        background: '#1e293b',
+        color: '#e2e8f0',
+        customClass: { popup: 'swal-dark' },
+      });
+    }
   };
 
   const fetchLogs = async () => {
