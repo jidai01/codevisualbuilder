@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { v4 as uuidv4 } from 'uuid';
+import Swal from 'sweetalert2';
 
 interface Workspace {
   uuid: string;
@@ -32,15 +32,40 @@ export default function Dashboard() {
     }
   };
 
-  const handleDeleteProject = async (e: React.MouseEvent, uuid: string) => {
+  const handleDeleteProject = async (e: React.MouseEvent, uuid: string, name: string) => {
     e.stopPropagation();
-    if (!confirm('Delete this project? This cannot be undone.')) return;
+    const result = await Swal.fire({
+      title: 'Delete project?',
+      html: `Are you sure you want to delete <strong>${name}</strong>?<br><span style="color:#94a3b8;font-size:13px">This cannot be undone.</span>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#475569',
+      confirmButtonText: 'Yes, delete it',
+      cancelButtonText: 'Cancel',
+      background: '#1e293b',
+      color: '#e2e8f0',
+      customClass: { popup: 'swal-dark' },
+    });
+
+    if (!result.isConfirmed) return;
 
     try {
       const res = await fetch(`http://localhost:8000/api/workspaces/${uuid}`, { method: 'DELETE' });
-      if (res.ok) setWorkspaces((prev) => prev.filter((w) => w.uuid !== uuid));
+      if (res.ok) {
+        setWorkspaces((prev) => prev.filter((w) => w.uuid !== uuid));
+        Swal.fire({
+          title: 'Deleted',
+          text: `${name} has been deleted.`,
+          icon: 'success',
+          timer: 1500,
+          showConfirmButton: false,
+          background: '#1e293b',
+          color: '#e2e8f0',
+        });
+      }
     } catch (err) {
-      console.error('Failed to delete:', err);
+      Swal.fire({ title: 'Error', text: 'Failed to delete project.', icon: 'error', background: '#1e293b', color: '#e2e8f0' });
     }
   };
 
@@ -111,7 +136,7 @@ export default function Dashboard() {
                   <span>{formatDate(ws.last_updated)}</span>
                 </div>
                 <div className="dashboard-card-footer">
-                  <button className="dashboard-card-delete" onClick={(e) => handleDeleteProject(e, ws.uuid)}>
+                  <button className="dashboard-card-delete" onClick={(e) => handleDeleteProject(e, ws.uuid, ws.project_name)}>
                     Delete
                   </button>
                   <span className="dashboard-card-action">Open →</span>

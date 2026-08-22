@@ -1159,3 +1159,43 @@ html, body {
 .btn-yellow:hover {
   background: #ca8a04;
 }
+
+/* SweetAlert2 Dark Theme */
+.swal-dark .swal2-popup {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+}
+
+.swal-dark .swal2-title {
+  color: #f1f5f9;
+}
+
+.swal-dark .swal2-html-container {
+  color: #e2e8f0;
+  margin: 0;
+}
+
+.swal-dark .swal2-actions {
+  gap: 8px;
+}
+
+.swal-dark .swal2-confirm {
+  border-radius: 6px;
+}
+
+.swal-dark .swal2-cancel {
+  border-radius: 6px;
+}
+
+.swal-dark .swal2-icon {
+  border-color: #fbbf24;
+}
+
+.swal-dark .swal2-icon.swal2-success [class^=swal2-success-line] {
+  border-color: #4ade80;
+}
+
+.swal-dark .swal2-icon.swal2-success .swal2-success-ring {
+  border-color: #4ade80;
+}
