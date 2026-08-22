@@ -41,6 +41,8 @@ function Canvas() {
   const [consoleLogs, setConsoleLogs] = useState<string[]>([]);
   const [showConsole, setShowConsole] = useState(false);
   const consoleRef = useRef<HTMLDivElement>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(256);
+  const isResizing = useRef(false);
 
   useEffect(() => {
     if (uuidParam === 'new') {
@@ -154,6 +156,33 @@ function Canvas() {
     router.push('/');
   };
 
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizing.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const startX = e.clientX;
+    const startWidth = sidebarWidth;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!isResizing.current) return;
+      const newWidth = Math.min(Math.max(startWidth + ev.clientX - startX, 160), 500);
+      setSidebarWidth(newWidth);
+    };
+
+    const onMouseUp = () => {
+      isResizing.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  };
+
   if (hydrating) {
     return (
       <div className="loading-screen">
@@ -250,9 +279,10 @@ function Canvas() {
 
         {activeTab === 'code' && isGenerated && (
           <div className="workspace-code-layout">
-            <div className="workspace-sidebar">
+            <div className="workspace-sidebar" style={{ width: sidebarWidth, flexShrink: 0 }}>
               <FileExplorer uuid={workspaceUuid!} onFileSelect={setActiveFile} activeFile={activeFile} />
             </div>
+            <div className="resize-handle" onMouseDown={handleResizeStart} />
             <div className="workspace-editor">
               <CodeEditor uuid={workspaceUuid!} filePath={activeFile} />
             </div>

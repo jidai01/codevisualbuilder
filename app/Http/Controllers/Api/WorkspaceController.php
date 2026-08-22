@@ -153,4 +153,161 @@ class WorkspaceController extends Controller
 
         return false;
     }
+
+    public function createFile(Request $request, string $uuid): JsonResponse
+    {
+        $workspacePath = storage_path("app/workspaces/{$uuid}");
+        if (!is_dir($workspacePath)) {
+            return response()->json(['error' => 'Workspace not found'], 404);
+        }
+
+        $request->validate(['path' => 'required|string']);
+        $relativePath = $request->input('path');
+        $filePath = $workspacePath . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+
+        $realWorkspace = realpath($workspacePath);
+        $realFile = realpath(dirname($filePath));
+        if (!$realFile || !str_starts_with($realFile, $realWorkspace)) {
+            return response()->json(['error' => 'Access denied'], 403);
+        }
+
+        if (file_exists($filePath)) {
+            return response()->json(['error' => 'File already exists'], 409);
+        }
+
+        $dir = dirname($filePath);
+        if (!is_dir($dir)) mkdir($dir, 0755, true);
+
+        file_put_contents($filePath, '');
+
+        return response()->json(['success' => true, 'path' => $relativePath]);
+    }
+
+    public function createFolder(Request $request, string $uuid): JsonResponse
+    {
+        $workspacePath = storage_path("app/workspaces/{$uuid}");
+        if (!is_dir($workspacePath)) {
+            return response()->json(['error' => 'Workspace not found'], 404);
+        }
+
+        $request->validate(['path' => 'required|string']);
+        $relativePath = $request->input('path');
+        $folderPath = $workspacePath . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+
+        $realWorkspace = realpath($workspacePath);
+        $realFolder = realpath(dirname($folderPath));
+        if (!$realFolder || !str_starts_with($realFolder, $realWorkspace)) {
+            return response()->json(['error' => 'Access denied'], 403);
+        }
+
+        if (is_dir($folderPath)) {
+            return response()->json(['error' => 'Folder already exists'], 409);
+        }
+
+        mkdir($folderPath, 0755, true);
+
+        return response()->json(['success' => true, 'path' => $relativePath]);
+    }
+
+    public function deleteFile(Request $request, string $uuid): JsonResponse
+    {
+        $workspacePath = storage_path("app/workspaces/{$uuid}");
+        if (!is_dir($workspacePath)) {
+            return response()->json(['error' => 'Workspace not found'], 404);
+        }
+
+        $request->validate(['path' => 'required|string']);
+        $relativePath = $request->input('path');
+        $filePath = $workspacePath . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+
+        $realWorkspace = realpath($workspacePath);
+        $realFile = realpath($filePath);
+        if (!$realFile || !str_starts_with($realFile, $realWorkspace)) {
+            return response()->json(['error' => 'Access denied'], 403);
+        }
+
+        if (!file_exists($filePath)) {
+            return response()->json(['error' => 'Not found'], 404);
+        }
+
+        if (is_dir($filePath)) {
+            $this->deleteDirectoryRecursive($filePath);
+        } else {
+            unlink($filePath);
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    public function upload(Request $request, string $uuid): JsonResponse
+    {
+        $workspacePath = storage_path("app/workspaces/{$uuid}");
+        if (!is_dir($workspacePath)) {
+            return response()->json(['error' => 'Workspace not found'], 404);
+        }
+
+        $request->validate([
+            'files' => 'required|array',
+            'files.*' => 'file',
+            'path' => 'nullable|string',
+        ]);
+
+        $basePath = $request->input('path', '');
+        $uploaded = [];
+
+        foreach ($request->file('files') as $file) {
+            $relativePath = $basePath ? $basePath . '/' . $file->getClientOriginalName() : $file->getClientOriginalName();
+            $destPath = $workspacePath . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+
+            $realWorkspace = realpath($workspacePath);
+            $realDest = realpath(dirname($destPath));
+            if (!$realDest || !str_starts_with($realDest, $realWorkspace)) {
+                continue;
+            }
+
+            $file->move(dirname($destPath), basename($destPath));
+            $uploaded[] = $relativePath;
+        }
+
+        return response()->json(['success' => true, 'uploaded' => $uploaded]);
+    }
+
+    public function terminal(Request $request, string $uuid): JsonResponse
+    {
+        $workspacePath = storage_path("app/workspaces/{$uuid}");
+        if (!is_dir($workspacePath)) {
+            return response()->json(['error' => 'Workspace not found'], 404);
+        }
+
+        $request->validate([
+            'command' => 'required|string|max:2000',
+        ]);
+
+        $command = $request->input('command');
+
+        $forbidden = ['rm -rf /', 'mkfs', 'dd if=', ':(){', 'fork'];
+        foreach ($forbidden as $pattern) {
+            if (str_contains($command, $pattern)) {
+                return response()->json(['error' => 'Command not allowed'], 403);
+            }
+        }
+
+        $cmd = "cd " . escapeshellarg($workspacePath) . " && " . $command . " 2>&1";
+        $output = shell_exec($cmd);
+
+        return response()->json([
+            'output' => $output ?: '',
+            'success' => true,
+        ]);
+    }
+
+    protected function deleteDirectoryRecursive(string $path): void
+    {
+        $items = array_diff(scandir($path), ['.', '..']);
+        foreach ($items as $item) {
+            $full = $path . DIRECTORY_SEPARATOR . $item;
+            is_dir($full) ? $this->deleteDirectoryRecursive($full) : unlink($full);
+        }
+        rmdir($path);
+    }
 }

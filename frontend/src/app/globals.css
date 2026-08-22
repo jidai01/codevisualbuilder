@@ -1024,6 +1024,10 @@ html, body {
   height: 100%;
 }
 
+.workspace-canvas-layout .sidebar {
+  overflow-y: auto;
+}
+
 /* Code Layout */
 .workspace-code-layout {
   display: flex;
@@ -1035,6 +1039,29 @@ html, body {
   border-right: 1px solid #334155;
   flex-shrink: 0;
   overflow: hidden;
+}
+
+.resize-handle {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+  transition: background 0.15s;
+  position: relative;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background: #3b82f6;
+}
+
+.resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  right: -3px;
 }
 
 .workspace-editor {

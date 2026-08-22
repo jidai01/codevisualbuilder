@@ -24,6 +24,12 @@ Route::prefix('workspace/{uuid}')->group(function () {
     Route::get('/git/status', [ExportController::class, 'gitStatus']);
     Route::get('/download', [ExportController::class, 'download']);
 
+    Route::post('/file/create', [WorkspaceController::class, 'createFile']);
+    Route::post('/folder/create', [WorkspaceController::class, 'createFolder']);
+    Route::post('/file/delete', [WorkspaceController::class, 'deleteFile']);
+    Route::post('/file/upload', [WorkspaceController::class, 'upload']);
+    Route::post('/terminal', [WorkspaceController::class, 'terminal']);
+
     Route::post('/sync', [SyncController::class, 'sync']);
     Route::post('/serve', [ServeController::class, 'serve']);
     Route::post('/serve/stop', [ServeController::class, 'stop']);
