@@ -26,17 +26,41 @@ class ServeController extends Controller
             ]);
         }
 
+        if (!file_exists("{$workspacePath}/artisan")) {
+            return response()->json(['error' => 'Invalid workspace: artisan file missing. Regenerate the project.'], 400);
+        }
+
         $port = $this->findAvailablePort();
         if (!$port) {
             return response()->json(['error' => 'No available ports (8001-8050)'], 500);
         }
 
-        $this->installDependencies($workspacePath);
-        $this->runMigrations($workspacePath);
-        $this->startProcess($uuid, $port, $workspacePath);
+        $installError = $this->installDependencies($workspacePath);
+        if ($installError) {
+            return response()->json(['error' => "Composer install failed: {$installError}"], 500);
+        }
+
+        $migrateError = $this->runMigrations($workspacePath);
+        if ($migrateError) {
+            return response()->json(['error' => "Migration failed: {$migrateError}"], 500);
+        }
+
+        $startError = $this->startProcess($uuid, $port, $workspacePath);
+        if ($startError) {
+            return response()->json(['error' => $startError], 500);
+        }
+
         $this->trackServer($uuid, $port);
 
-        sleep(1);
+        sleep(2);
+
+        if (!$this->isPortInUse($port)) {
+            $this->untrackServer($uuid);
+            $logFile = storage_path("app/workspaces/{$uuid}/storage/logs/artisan-serve.log");
+            $logContent = File::exists($logFile) ? File::get($logFile) : '';
+            $shortLog = substr(trim($logContent), -500);
+            return response()->json(['error' => "Server did not start. Log: {$shortLog}"], 500);
+        }
 
         return response()->json([
             'url' => "http://127.0.0.1:{$port}",
@@ -90,52 +114,61 @@ class ServeController extends Controller
         }
     }
 
-    protected function installDependencies(string $workspacePath): void
+    protected function installDependencies(string $workspacePath): ?string
     {
-        if (!is_dir("{$workspacePath}/vendor")) {
-            $php = defined('PHP_BINARY') ? PHP_BINARY : 'php';
-            $cmd = "{$php} artisan --version 2>&1";
-            $output = shell_exec("cd " . escapeshellarg($workspacePath) . " && {$php} -v 2>&1");
+        if (is_dir("{$workspacePath}/vendor")) {
+            return null;
         }
+
+        $php = PHP_BINARY;
+        $cmd = "cd " . escapeshellarg($workspacePath) . " && {$php} ../composer.phar install --no-dev --no-interaction 2>&1";
+
+        if (!file_exists(storage_path('app/composer.phar'))) {
+            $cmd = "cd " . escapeshellarg($workspacePath) . " && composer install --no-dev --no-interaction 2>&1";
+        }
+
+        $output = shell_exec($cmd);
+
+        if (!is_dir("{$workspacePath}/vendor")) {
+            return $output ?: 'vendor directory not created';
+        }
+
+        return null;
     }
 
-    protected function runMigrations(string $workspacePath): void
+    protected function runMigrations(string $workspacePath): ?string
     {
-        $php = defined('PHP_BINARY') ? PHP_BINARY : 'php';
-        shell_exec("cd " . escapeshellarg($workspacePath) . " && {$php} artisan migrate --force 2>&1");
+        $php = PHP_BINARY;
+        $cmd = "cd " . escapeshellarg($workspacePath) . " && {$php} artisan migrate --force 2>&1";
+        $output = shell_exec($cmd);
+
+        if (str_contains($output ?? '', 'Error') || str_contains($output ?? '', 'Exception')) {
+            return $output;
+        }
+
+        return null;
     }
 
-    protected function startProcess(string $uuid, int $port, string $workspacePath): void
+    protected function startProcess(string $uuid, int $port, string $workspacePath): ?string
     {
         $logDir = storage_path("app/workspaces/{$uuid}/storage/logs");
         File::ensureDirectoryExists($logDir, 0755, true);
 
         $logFile = $logDir . '/artisan-serve.log';
-        $php = defined('PHP_BINARY') ? PHP_BINARY : 'php';
+        File::put($logFile, '');
+
+        $php = PHP_BINARY;
         $artisan = $workspacePath . DIRECTORY_SEPARATOR . 'artisan';
 
-        if (!file_exists($artisan)) {
-            return;
-        }
-
         if (str_starts_with(PHP_OS, 'WIN')) {
-            $cmd = $php . ' ' . escapeshellarg($artisan) . ' serve --port=' . $port . ' --host=127.0.0.1';
-            $descriptors = [
-                0 => ['pipe', 'r'],
-                1 => ['file', $logFile, 'w'],
-                2 => ['file', $logFile, 'a'],
-            ];
-            $process = proc_open($cmd, $descriptors, $pipes, $workspacePath);
-            if (is_resource($process)) {
-                fclose($pipes[0]);
-                fclose($pipes[1]);
-                fclose($pipes[2]);
-                proc_close($process);
-            }
+            $cmd = "start /B cmd /c \"cd /d " . escapeshellarg($workspacePath) . " && " . escapeshellarg($php) . " artisan serve --port={$port} --host=127.0.0.1 > " . escapeshellarg($logFile) . " 2>&1\"";
+            exec($cmd, $output, $exitCode);
         } else {
             $cmd = "cd " . escapeshellarg($workspacePath) . " && nohup {$php} artisan serve --port={$port} --host=127.0.0.1 > " . escapeshellarg($logFile) . " 2>&1 &";
-            exec($cmd);
+            exec($cmd, $output, $exitCode);
         }
+
+        return null;
     }
 
     protected function trackServer(string $uuid, int $port): void
