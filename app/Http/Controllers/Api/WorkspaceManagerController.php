@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 
 class WorkspaceManagerController extends Controller
@@ -96,5 +97,42 @@ class WorkspaceManagerController extends Controller
         File::deleteDirectory($workspacePath);
 
         return response()->json(['success' => true]);
+    }
+
+    public function rename(Request $request, string $uuid): JsonResponse
+    {
+        $workspacePath = storage_path("app/workspaces/{$uuid}");
+
+        if (!is_dir($workspacePath)) {
+            return response()->json(['error' => 'Workspace not found'], 404);
+        }
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+        ]);
+
+        $newName = trim($request->input('name'));
+        $newName = preg_replace('/[^\w\s\-\.]/', '', $newName);
+
+        if (empty($newName)) {
+            return response()->json(['error' => 'Invalid project name'], 422);
+        }
+
+        $blueprintPath = "{$workspacePath}/blueprint.json";
+        if (File::exists($blueprintPath)) {
+            $blueprint = json_decode(File::get($blueprintPath), true);
+            $blueprint['project'] = $newName;
+            File::put($blueprintPath, json_encode($blueprint, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        }
+
+        $envPath = "{$workspacePath}/.env";
+        if (File::exists($envPath)) {
+            $envContent = File::get($envPath);
+            $escapedName = str_contains($newName, ' ') ? '"' . $newName . '"' : $newName;
+            $envContent = preg_replace('/^APP_NAME=.*/m', "APP_NAME={$escapedName}", $envContent);
+            File::put($envPath, $envContent);
+        }
+
+        return response()->json(['success' => true, 'name' => $newName]);
     }
 }

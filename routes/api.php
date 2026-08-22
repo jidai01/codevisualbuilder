@@ -13,6 +13,7 @@ Route::post('/generate', [ProjectController::class, 'generate']);
 
 Route::get('/workspaces', [WorkspaceManagerController::class, 'index']);
 Route::get('/workspaces/{uuid}/blueprint', [WorkspaceManagerController::class, 'blueprint']);
+Route::patch('/workspaces/{uuid}/rename', [WorkspaceManagerController::class, 'rename']);
 Route::delete('/workspaces/{uuid}', [WorkspaceManagerController::class, 'destroy']);
 
 Route::prefix('workspace/{uuid}')->group(function () {

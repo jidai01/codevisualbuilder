@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Swal from 'sweetalert2';
 
@@ -15,10 +15,21 @@ export default function Dashboard() {
   const router = useRouter();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingUuid, setEditingUuid] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [saving, setSaving] = useState(false);
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchWorkspaces();
   }, []);
+
+  useEffect(() => {
+    if (editingUuid && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.select();
+    }
+  }, [editingUuid]);
 
   const fetchWorkspaces = async () => {
     try {
@@ -30,6 +41,51 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRenameStart = (e: React.MouseEvent, uuid: string, currentName: string) => {
+    e.stopPropagation();
+    setEditingUuid(uuid);
+    setEditValue(currentName);
+  };
+
+  const handleRenameCancel = () => {
+    setEditingUuid(null);
+    setEditValue('');
+  };
+
+  const handleRenameSave = async (uuid: string) => {
+    const trimmed = editValue.trim();
+    if (!trimmed || trimmed === workspaces.find((w) => w.uuid === uuid)?.project_name) {
+      handleRenameCancel();
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch(`http://localhost:8000/api/workspaces/${uuid}/rename`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setWorkspaces((prev) =>
+          prev.map((w) => (w.uuid === uuid ? { ...w, project_name: trimmed } : w))
+        );
+      }
+    } catch (err) {
+      console.error('Rename failed:', err);
+    } finally {
+      setSaving(false);
+      setEditingUuid(null);
+      setEditValue('');
+    }
+  };
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent, uuid: string) => {
+    if (e.key === 'Enter') handleRenameSave(uuid);
+    if (e.key === 'Escape') handleRenameCancel();
   };
 
   const handleDeleteProject = async (e: React.MouseEvent, uuid: string, name: string) => {
@@ -119,30 +175,77 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="dashboard-grid">
-            {workspaces.map((ws) => (
-              <div
-                key={ws.uuid}
-                className="dashboard-card"
-                onClick={() => handleOpenProject(ws.uuid)}
-              >
-                <div className="dashboard-card-header">
-                  <div className="dashboard-card-icon">📁</div>
-                  <span className="dashboard-card-uuid">{ws.uuid.slice(0, 8)}...</span>
+            {workspaces.map((ws) => {
+              const isEditing = editingUuid === ws.uuid;
+
+              return (
+                <div
+                  key={ws.uuid}
+                  className="dashboard-card"
+                  onClick={() => !isEditing && handleOpenProject(ws.uuid)}
+                >
+                  <div className="dashboard-card-header">
+                    <div className="dashboard-card-icon">📁</div>
+                    <span className="dashboard-card-uuid">{ws.uuid.slice(0, 8)}...</span>
+                  </div>
+
+                  {isEditing ? (
+                    <div className="dashboard-card-edit" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        ref={editInputRef}
+                        type="text"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={(e) => handleRenameKeyDown(e, ws.uuid)}
+                        onBlur={() => handleRenameSave(ws.uuid)}
+                        className="dashboard-card-edit-input"
+                        disabled={saving}
+                        maxLength={255}
+                      />
+                      <div className="dashboard-card-edit-actions">
+                        <button
+                          className="dashboard-card-edit-save"
+                          onClick={() => handleRenameSave(ws.uuid)}
+                          disabled={saving}
+                        >
+                          {saving ? '...' : '✓'}
+                        </button>
+                        <button
+                          className="dashboard-card-edit-cancel"
+                          onClick={handleRenameCancel}
+                          disabled={saving}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="dashboard-card-name-row">
+                      <h3 className="dashboard-card-name">{ws.project_name}</h3>
+                      <button
+                        className="dashboard-card-rename"
+                        onClick={(e) => handleRenameStart(e, ws.uuid, ws.project_name)}
+                        title="Rename"
+                      >
+                        ✎
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="dashboard-card-meta">
+                    <span>{ws.entities_count} entit{ws.entities_count !== 1 ? 'ies' : 'y'}</span>
+                    <span className="dashboard-card-dot">·</span>
+                    <span>{formatDate(ws.last_updated)}</span>
+                  </div>
+                  <div className="dashboard-card-footer">
+                    <button className="dashboard-card-delete" onClick={(e) => handleDeleteProject(e, ws.uuid, ws.project_name)}>
+                      Delete
+                    </button>
+                    <span className="dashboard-card-action">Open →</span>
+                  </div>
                 </div>
-                <h3 className="dashboard-card-name">{ws.project_name}</h3>
-                <div className="dashboard-card-meta">
-                  <span>{ws.entities_count} entit{ws.entities_count !== 1 ? 'ies' : 'y'}</span>
-                  <span className="dashboard-card-dot">·</span>
-                  <span>{formatDate(ws.last_updated)}</span>
-                </div>
-                <div className="dashboard-card-footer">
-                  <button className="dashboard-card-delete" onClick={(e) => handleDeleteProject(e, ws.uuid, ws.project_name)}>
-                    Delete
-                  </button>
-                  <span className="dashboard-card-action">Open →</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>
