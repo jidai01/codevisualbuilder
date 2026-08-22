@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Process;
 
 class ServeController extends Controller
 {
@@ -20,9 +19,9 @@ class ServeController extends Controller
         }
 
         $existingPort = $this->getRunningPort($uuid);
-        if ($existingPort) {
+        if ($existingPort && $this->isPortInUse((int) $existingPort)) {
             return response()->json([
-                'url' => "http://localhost:{$existingPort}",
+                'url' => "http://127.0.0.1:{$existingPort}",
                 'port' => (int) $existingPort,
             ]);
         }
@@ -34,12 +33,13 @@ class ServeController extends Controller
 
         $this->installDependencies($workspacePath);
         $this->runMigrations($workspacePath);
-
         $this->startProcess($uuid, $port, $workspacePath);
         $this->trackServer($uuid, $port);
 
+        sleep(1);
+
         return response()->json([
-            'url' => "http://localhost:{$port}",
+            'url' => "http://127.0.0.1:{$port}",
             'port' => $port,
         ]);
     }
@@ -48,7 +48,7 @@ class ServeController extends Controller
     {
         $port = $this->getRunningPort($uuid);
         if ($port) {
-            $this->killPort($port);
+            $this->killPort((int) $port);
             $this->untrackServer($uuid);
         }
         return response()->json(['success' => true]);
@@ -79,8 +79,8 @@ class ServeController extends Controller
         if (str_starts_with(PHP_OS, 'WIN')) {
             $output = shell_exec("netstat -ano | findstr :{$port} | findstr LISTENING");
             if ($output) {
-                preg_match_all('/\s(\d+)$/', $output, $matches);
-                $pids = array_unique($matches[1] ?? []);
+                preg_match_all('/\s(\d+)\s*$/', $output, $matches);
+                $pids = array_unique(array_filter($matches[1] ?? []));
                 foreach ($pids as $pid) {
                     exec("taskkill /PID {$pid} /F 2>nul");
                 }
@@ -93,26 +93,48 @@ class ServeController extends Controller
     protected function installDependencies(string $workspacePath): void
     {
         if (!is_dir("{$workspacePath}/vendor")) {
-            Process::run("composer install --no-dev --no-interaction --working-dir={$workspacePath}");
+            $php = defined('PHP_BINARY') ? PHP_BINARY : 'php';
+            $cmd = "{$php} artisan --version 2>&1";
+            $output = shell_exec("cd " . escapeshellarg($workspacePath) . " && {$php} -v 2>&1");
         }
     }
 
     protected function runMigrations(string $workspacePath): void
     {
-        Process::run("php artisan migrate --force --working-dir={$workspacePath}");
+        $php = defined('PHP_BINARY') ? PHP_BINARY : 'php';
+        shell_exec("cd " . escapeshellarg($workspacePath) . " && {$php} artisan migrate --force 2>&1");
     }
 
     protected function startProcess(string $uuid, int $port, string $workspacePath): void
     {
-        $logFile = storage_path("app/workspaces/{$uuid}/storage/logs/artisan-serve.log");
-        File::ensureDirectoryExists(dirname($logFile));
+        $logDir = storage_path("app/workspaces/{$uuid}/storage/logs");
+        File::ensureDirectoryExists($logDir, 0755, true);
+
+        $logFile = $logDir . '/artisan-serve.log';
+        $php = defined('PHP_BINARY') ? PHP_BINARY : 'php';
+        $artisan = $workspacePath . DIRECTORY_SEPARATOR . 'artisan';
+
+        if (!file_exists($artisan)) {
+            return;
+        }
 
         if (str_starts_with(PHP_OS, 'WIN')) {
-            $cmd = "cmd /c \"cd /d \"{$workspacePath}\" && php artisan serve --port={$port} --host=127.0.0.1 > \"{$logFile}\" 2>&1\"";
-            $wsh = new \COM("WScript.Shell");
-            $wsh->Run($cmd, 0, false);
+            $cmd = $php . ' ' . escapeshellarg($artisan) . ' serve --port=' . $port . ' --host=127.0.0.1';
+            $descriptors = [
+                0 => ['pipe', 'r'],
+                1 => ['file', $logFile, 'w'],
+                2 => ['file', $logFile, 'a'],
+            ];
+            $process = proc_open($cmd, $descriptors, $pipes, $workspacePath);
+            if (is_resource($process)) {
+                fclose($pipes[0]);
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+                proc_close($process);
+            }
         } else {
-            exec("cd {$workspacePath} && nohup php artisan serve --port={$port} --host=127.0.0.1 > {$logFile} 2>&1 &");
+            $cmd = "cd " . escapeshellarg($workspacePath) . " && nohup {$php} artisan serve --port={$port} --host=127.0.0.1 > " . escapeshellarg($logFile) . " 2>&1 &";
+            exec($cmd);
         }
     }
 
