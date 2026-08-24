@@ -25,7 +25,7 @@ export default function ExportPanel({ uuid, projectName }: ExportPanelProps) {
 
   const checkGitStatus = async () => {
     try {
-      const res = await fetch(`http://localhost:8000/api/workspace/${uuid}/git/status`);
+      const res = await fetch(`/api/workspace/${uuid}/git/status`);
       const data = await res.json();
       setGitStatus(data);
     } catch (err) {
@@ -39,7 +39,7 @@ export default function ExportPanel({ uuid, projectName }: ExportPanelProps) {
     setGitError(null);
 
     try {
-      const res = await fetch(`http://localhost:8000/api/workspace/${uuid}/git/init`, {
+      const res = await fetch(`/api/workspace/${uuid}/git/init`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -68,7 +68,7 @@ export default function ExportPanel({ uuid, projectName }: ExportPanelProps) {
 
     try {
       const link = document.createElement('a');
-      link.href = `http://localhost:8000/api/workspace/${uuid}/download`;
+      link.href = `/api/workspace/${uuid}/download`;
       link.download = `${projectName}.zip`;
       document.body.appendChild(link);
       link.click();

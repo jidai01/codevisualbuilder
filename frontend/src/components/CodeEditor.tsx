@@ -55,7 +55,7 @@ export default function CodeEditor({ uuid, filePath, onFileSaved }: CodeEditorPr
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`http://localhost:8000/api/workspace/${uuid}/file?path=${encodeURIComponent(path)}`);
+      const res = await fetch(`/api/workspace/${uuid}/file?path=${encodeURIComponent(path)}`);
       const data = await res.json();
 
       if (data.error) {
@@ -84,7 +84,7 @@ export default function CodeEditor({ uuid, filePath, onFileSaved }: CodeEditorPr
 
     setSaving(true);
     try {
-      const res = await fetch(`http://localhost:8000/api/workspace/${uuid}/file`, {
+      const res = await fetch(`/api/workspace/${uuid}/file`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: filePath, content }),

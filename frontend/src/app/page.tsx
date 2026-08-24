@@ -33,7 +33,7 @@ export default function Dashboard() {
 
   const fetchWorkspaces = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/workspaces');
+      const res = await fetch('/api/workspaces');
       const data = await res.json();
       setWorkspaces(data);
     } catch (err) {
@@ -63,7 +63,7 @@ export default function Dashboard() {
 
     setSaving(true);
     try {
-      const res = await fetch(`http://localhost:8000/api/workspaces/${uuid}/rename`, {
+      const res = await fetch(`/api/workspaces/${uuid}/rename`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmed }),
@@ -107,7 +107,7 @@ export default function Dashboard() {
     if (!result.isConfirmed) return;
 
     try {
-      const res = await fetch(`http://localhost:8000/api/workspaces/${uuid}`, { method: 'DELETE' });
+      const res = await fetch(`/api/workspaces/${uuid}`, { method: 'DELETE' });
       if (res.ok) {
         setWorkspaces((prev) => prev.filter((w) => w.uuid !== uuid));
         Swal.fire({

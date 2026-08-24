@@ -63,7 +63,7 @@ function Canvas() {
 
   const fetchBlueprint = async (uuid: string) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/workspaces/${uuid}/blueprint`);
+      const res = await fetch(`/api/workspaces/${uuid}/blueprint`);
       if (!res.ok) { setError('Project not found'); setHydrating(false); return; }
       const blueprint = await res.json();
       hydrateFromBlueprint(uuid, blueprint);
@@ -87,7 +87,7 @@ function Canvas() {
     setGenerating(true); setError(null);
     try {
       const blueprint = generateBlueprint();
-      const res = await fetch('http://localhost:8000/api/generate', {
+      const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(blueprint),
@@ -110,7 +110,7 @@ function Canvas() {
     setSyncing(true); setError(null);
     try {
       const blueprint = generateBlueprint();
-      const res = await fetch(`http://localhost:8000/api/workspace/${workspaceUuid}/sync`, {
+      const res = await fetch(`/api/workspace/${workspaceUuid}/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(blueprint),
@@ -124,7 +124,7 @@ function Canvas() {
   const handleStartPreview = async () => {
     if (!workspaceUuid) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/workspace/${workspaceUuid}/serve`, { method: 'POST' });
+      const res = await fetch(`/api/workspace/${workspaceUuid}/serve`, { method: 'POST' });
       const data = await res.json();
       if (data.url) {
         setPreviewUrl(data.url);
@@ -156,7 +156,7 @@ function Canvas() {
   const fetchLogs = async () => {
     if (!workspaceUuid) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/workspace/${workspaceUuid}/logs`);
+      const res = await fetch(`/api/workspace/${workspaceUuid}/logs`);
       const data = await res.json();
       setConsoleLogs(data.lines || []);
     } catch {}

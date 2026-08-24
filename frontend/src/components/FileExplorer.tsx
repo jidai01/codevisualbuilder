@@ -143,7 +143,7 @@ export default function FileExplorer({ uuid, onFileSelect, activeFile }: FileExp
 
   const fetchTree = async () => {
     try {
-      const res = await fetch(`http://localhost:8000/api/workspace/${uuid}/tree`);
+      const res = await fetch(`/api/workspace/${uuid}/tree`);
       const data = await res.json();
       setTree(data);
     } catch (err) {
