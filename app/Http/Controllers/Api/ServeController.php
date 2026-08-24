@@ -40,6 +40,9 @@ class ServeController extends Controller
                 return response()->json(['error' => "Composer install failed: {$installError}"], 500);
             }
             $this->runMigrations($workspacePath);
+        } else {
+            $this->ensureSkeleton($workspacePath);
+            $this->runMigrations($workspacePath);
         }
 
         $port = $this->findAvailablePort();
@@ -72,9 +75,7 @@ class ServeController extends Controller
 
         $prev = ini_get('max_execution_time');
         set_time_limit(300);
-
         $output = shell_exec($cmd);
-
         set_time_limit((int) $prev);
 
         if (!is_dir("{$workspacePath}/vendor")) {
@@ -82,6 +83,13 @@ class ServeController extends Controller
         }
 
         return null;
+    }
+
+    protected function runMigrations(string $workspacePath): void
+    {
+        $php = PHP_BINARY;
+        shell_exec("cd " . escapeshellarg($workspacePath) . " && {$php} artisan key:generate --force 2>&1");
+        shell_exec("cd " . escapeshellarg($workspacePath) . " && {$php} artisan migrate --force 2>&1");
     }
 
     protected function ensureSkeleton(string $workspacePath): ?string
@@ -99,6 +107,7 @@ class ServeController extends Controller
             "{$workspacePath}/storage/framework/sessions",
             "{$workspacePath}/storage/framework/views",
             "{$workspacePath}/storage/logs",
+            "{$workspacePath}/database/migrations",
         ];
         foreach ($dirs as $dir) {
             if (!is_dir($dir)) {
@@ -107,7 +116,193 @@ class ServeController extends Controller
         }
 
         $files = [
-            'bootstrap/app.php' => <<<'PHP'
+            'bootstrap/app.php' => $this->skeletonBootstrapApp(),
+            'routes/web.php' => $this->skeletonRoutesWeb(),
+            'routes/api.php' => "<?php\n\nuse Illuminate\\Support\\Facades\\Route;\n",
+            'routes/console.php' => "<?php\n",
+            'public/index.php' => $this->skeletonPublicIndex(),
+            'config/database.php' => $this->skeletonConfigDatabase(),
+            'config/logging.php' => $this->skeletonConfigLogging(),
+            'config/services.php' => $this->skeletonConfigServices(),
+        ];
+
+        foreach ($files as $relativePath => $content) {
+            $fullPath = "{$workspacePath}/{$relativePath}";
+            if (!file_exists($fullPath)) {
+                file_put_contents($fullPath, $content);
+            }
+        }
+
+        $composerJson = "{$workspacePath}/composer.json";
+        $existing = file_exists($composerJson) ? json_decode(file_get_contents($composerJson), true) : null;
+        $needsFix = !$existing || !isset($existing['require']['laravel/framework'])
+            || str_contains($existing['require']['laravel/framework'] ?? '', '^11');
+
+        if ($needsFix) {
+            file_put_contents($composerJson, $this->skeletonComposerJson(basename($workspacePath)));
+        }
+
+        if (!file_exists("{$workspacePath}/database/database.sqlite")) {
+            file_put_contents("{$workspacePath}/database/database.sqlite", '');
+        }
+
+        $this->skeletonMigrations("{$workspacePath}/database/migrations");
+
+        return null;
+    }
+
+    protected function skeletonMigrations(string $dir): void
+    {
+        $sessionFile = $dir . '/0001_01_01_000000_create_sessions_table.php';
+        if (!file_exists($sessionFile)) {
+            $code = '<?php' . "\n"
+                . 'use Illuminate\Database\Migrations\Migration;' . "\n"
+                . 'use Illuminate\Database\Schema\Blueprint;' . "\n"
+                . 'use Illuminate\Support\Facades\Schema;' . "\n"
+                . 'return new class extends Migration' . "\n"
+                . '{' . "\n"
+                . '    public function up(): void' . "\n"
+                . '    {' . "\n"
+                . "        Schema::create('sessions', function (Blueprint \$table) {" . "\n"
+                . "            \$table->string('id')->primary();" . "\n"
+                . "            \$table->foreignId('user_id')->nullable()->index();" . "\n"
+                . "            \$table->string('ip_address', 45)->nullable();" . "\n"
+                . "            \$table->text('user_agent')->nullable();" . "\n"
+                . "            \$table->longText('payload');" . "\n"
+                . "            \$table->integer('last_activity')->index();" . "\n"
+                . '        });' . "\n"
+                . '    }' . "\n"
+                . '    public function down(): void' . "\n"
+                . '    {' . "\n"
+                . "        Schema::dropIfExists('sessions');" . "\n"
+                . '    }' . "\n"
+                . '};';
+            file_put_contents($sessionFile, $code);
+        }
+
+        $cacheFile = $dir . '/0001_01_01_000001_create_cache_table.php';
+        if (!file_exists($cacheFile)) {
+            $code = '<?php' . "\n"
+                . 'use Illuminate\Database\Migrations\Migration;' . "\n"
+                . 'use Illuminate\Database\Schema\Blueprint;' . "\n"
+                . 'use Illuminate\Support\Facades\Schema;' . "\n"
+                . 'return new class extends Migration' . "\n"
+                . '{' . "\n"
+                . '    public function up(): void' . "\n"
+                . '    {' . "\n"
+                . "        Schema::create('cache', function (Blueprint \$table) {" . "\n"
+                . "            \$table->string('key')->primary();" . "\n"
+                . "            \$table->mediumText('value');" . "\n"
+                . "            \$table->integer('expiration');" . "\n"
+                . '        });' . "\n"
+                . "        Schema::create('cache_locks', function (Blueprint \$table) {" . "\n"
+                . "            \$table->string('key')->primary();" . "\n"
+                . "            \$table->string('owner');" . "\n"
+                . "            \$table->integer('expiration');" . "\n"
+                . '        });' . "\n"
+                . '    }' . "\n"
+                . '    public function down(): void' . "\n"
+                . '    {' . "\n"
+                . "        Schema::dropIfExists('cache_locks');" . "\n"
+                . "        Schema::dropIfExists('cache');" . "\n"
+                . '    }' . "\n"
+                . '};';
+            file_put_contents($cacheFile, $code);
+        }
+
+        $jobsFile = $dir . '/0001_01_01_000002_create_jobs_table.php';
+        if (!file_exists($jobsFile)) {
+            $code = '<?php' . "\n"
+                . 'use Illuminate\Database\Migrations\Migration;' . "\n"
+                . 'use Illuminate\Database\Schema\Blueprint;' . "\n"
+                . 'use Illuminate\Support\Facades\Schema;' . "\n"
+                . 'return new class extends Migration' . "\n"
+                . '{' . "\n"
+                . '    public function up(): void' . "\n"
+                . '    {' . "\n"
+                . "        Schema::create('jobs', function (Blueprint \$table) {" . "\n"
+                . "            \$table->id();" . "\n"
+                . "            \$table->string('queue')->index();" . "\n"
+                . "            \$table->longText('payload');" . "\n"
+                . "            \$table->unsignedTinyInteger('attempts');" . "\n"
+                . "            \$table->unsignedInteger('reserved_at')->nullable();" . "\n"
+                . "            \$table->unsignedInteger('available_at');" . "\n"
+                . "            \$table->unsignedInteger('created_at');" . "\n"
+                . '        });' . "\n"
+                . "        Schema::create('failed_jobs', function (Blueprint \$table) {" . "\n"
+                . "            \$table->id();" . "\n"
+                . "            \$table->string('uuid')->unique();" . "\n"
+                . "            \$table->text('connection');" . "\n"
+                . "            \$table->text('queue');" . "\n"
+                . "            \$table->longText('payload');" . "\n"
+                . "            \$table->longText('exception');" . "\n"
+                . "            \$table->timestamp('failed_at')->useCurrent();" . "\n"
+                . '        });' . "\n"
+                . '    }' . "\n"
+                . '    public function down(): void' . "\n"
+                . '    {' . "\n"
+                . "        Schema::dropIfExists('failed_jobs');" . "\n"
+                . "        Schema::dropIfExists('jobs');" . "\n"
+                . '    }' . "\n"
+                . '};';
+            file_put_contents($jobsFile, $code);
+        }
+    }
+
+    protected function skeletonComposerJson(string $slug): string
+    {
+        return json_encode([
+            'name' => "app/{$slug}",
+            'type' => 'project',
+            'license' => 'MIT',
+            'require' => [
+                'php' => '^8.2',
+                'filament/filament' => '^3.0',
+                'laravel/framework' => '^13.0',
+                'laravel/tinker' => '^3.0',
+            ],
+            'require-dev' => [
+                'fakerphp/faker' => '^1.23',
+                'laravel/pint' => '^1.27',
+                'mockery/mockery' => '^1.6',
+                'nunomaduro/collision' => '^8.6',
+                'phpunit/phpunit' => '^12.5.12',
+            ],
+            'autoload' => [
+                'psr-4' => [
+                    'App\\\\' => 'app/',
+                    'Database\\\\Factories\\\\' => 'database/factories/',
+                    'Database\\\\Seeders\\\\' => 'database/seeders/',
+                ],
+            ],
+            'autoload-dev' => [
+                'psr-4' => ['Tests\\\\' => 'tests/'],
+            ],
+            'scripts' => [
+                'post-autoload-dump' => [
+                    'Illuminate\\\\Foundation\\\\ComposerScripts::postAutoloadDump',
+                    '@php artisan package:discover --ansi',
+                ],
+            ],
+            'extra' => ['laravel' => ['dont-discover' => []]],
+            'config' => [
+                'optimize-autoloader' => true,
+                'preferred-install' => 'dist',
+                'sort-packages' => true,
+                'allow-plugins' => [
+                    'pestphp/pest-plugin' => true,
+                    'php-http/discovery' => true,
+                ],
+                'policy' => ['advisories' => ['block' => false]],
+            ],
+            'minimum-stability' => 'stable',
+            'prefer-stable' => true,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    }
+
+    protected function skeletonBootstrapApp(): string
+    {
+        return <<<'PHP'
 <?php
 
 use Illuminate\Foundation\Application;
@@ -127,8 +322,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         //
     })->create();
-PHP,
-            'routes/web.php' => <<<'PHP'
+PHP;
+    }
+
+    protected function skeletonRoutesWeb(): string
+    {
+        return <<<'PHP'
 <?php
 
 use Illuminate\Support\Facades\Route;
@@ -136,10 +335,12 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return response()->json(['message' => 'Laravel API is running']);
 });
-PHP,
-            'routes/api.php' => "<?php\n\nuse Illuminate\\Support\\Facades\\Route;\n",
-            'routes/console.php' => "<?php\n",
-            'public/index.php' => <<<'PHP'
+PHP;
+    }
+
+    protected function skeletonPublicIndex(): string
+    {
+        return <<<'PHP'
 <?php
 
 use Illuminate\Http\Request;
@@ -154,8 +355,12 @@ require __DIR__.'/../vendor/autoload.php';
 
 (require_once __DIR__.'/../bootstrap/app.php')
     ->handleRequest(Request::capture());
-PHP,
-            'config/database.php' => <<<'PHP'
+PHP;
+    }
+
+    protected function skeletonConfigDatabase(): string
+    {
+        return <<<'PHP'
 <?php
 
 return [
@@ -178,8 +383,12 @@ return [
         'update_date_on_publish' => true,
     ],
 ];
-PHP,
-            'config/logging.php' => <<<'PHP'
+PHP;
+    }
+
+    protected function skeletonConfigLogging(): string
+    {
+        return <<<'PHP'
 <?php
 
 return [
@@ -209,8 +418,12 @@ return [
         ],
     ],
 ];
-PHP,
-            'config/services.php' => <<<'PHP'
+PHP;
+    }
+
+    protected function skeletonConfigServices(): string
+    {
+        return <<<'PHP'
 <?php
 
 return [
@@ -222,215 +435,7 @@ return [
     ],
     'resend' => ['key' => env('RESEND_KEY')],
 ];
-PHP,
-        ];
-
-        foreach ($files as $relativePath => $content) {
-            $fullPath = "{$workspacePath}/{$relativePath}";
-            if (!file_exists($fullPath)) {
-                file_put_contents($fullPath, $content);
-            }
-        }
-
-        $composerJson = "{$workspacePath}/composer.json";
-        $existing = file_exists($composerJson) ? json_decode(file_get_contents($composerJson), true) : null;
-        $needsFix = !$existing || !isset($existing['require']['laravel/framework'])
-            || str_contains($existing['require']['laravel/framework'] ?? '', '^11');
-
-        if ($needsFix) {
-            $slug = basename($workspacePath);
-            file_put_contents("{$workspacePath}/composer.json", json_encode([
-                'name' => "app/{$slug}",
-                'type' => 'project',
-                'license' => 'MIT',
-                'require' => [
-                    'php' => '^8.2',
-                    'filament/filament' => '^3.0',
-                    'laravel/framework' => '^13.0',
-                    'laravel/tinker' => '^3.0',
-                ],
-                'require-dev' => [
-                    'fakerphp/faker' => '^1.23',
-                    'laravel/pint' => '^1.27',
-                    'mockery/mockery' => '^1.6',
-                    'nunomaduro/collision' => '^8.6',
-                    'phpunit/phpunit' => '^12.5.12',
-                ],
-                'autoload' => [
-                    'psr-4' => [
-                        'App\\\\' => 'app/',
-                        'Database\\\\Factories\\\\' => 'database/factories/',
-                        'Database\\\\Seeders\\\\' => 'database/seeders/',
-                    ],
-                ],
-                'autoload-dev' => [
-                    'psr-4' => ['Tests\\\\' => 'tests/'],
-                ],
-                'scripts' => [
-                    'post-autoload-dump' => [
-                        'Illuminate\\\\Foundation\\\\ComposerScripts::postAutoloadDump',
-                        '@php artisan package:discover --ansi',
-                    ],
-                ],
-                'extra' => ['laravel' => ['dont-discover' => []]],
-                'config' => [
-                    'optimize-autoloader' => true,
-                    'preferred-install' => 'dist',
-                    'sort-packages' => true,
-                    'allow-plugins' => [
-                        'pestphp/pest-plugin' => true,
-                        'php-http/discovery' => true,
-                    ],
-                    'policy' => ['advisories' => ['block' => false]],
-                ],
-                'minimum-stability' => 'stable',
-                'prefer-stable' => true,
-            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-        }
-
-        if (!file_exists("{$workspacePath}/database/database.sqlite")) {
-            file_put_contents("{$workspacePath}/database/database.sqlite", '');
-        }
-
-        $migrationsDir = "{$workspacePath}/database/migrations";
-        if (!is_dir($migrationsDir)) {
-            mkdir($migrationsDir, 0755, true);
-        }
-
-        $sessionsMigration = $migrationsDir . '/0001_01_01_000000_create_sessions_table.php';
-        if (!file_exists($sessionsMigration)) {
-            file_put_contents($sessionsMigration, <<<'PHP'
-<?php
-
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-
-return new class extends Migration
-{
-    public function up(): void
-    {
-        Schema::create('sessions', function (Blueprint $table) {
-            $table->string('id')->primary();
-            $table->foreignId('user_id')->nullable()->index();
-            $table->string('ip_address', 45)->nullable();
-            $table->text('user_agent')->nullable();
-            $table->longText('payload');
-            $table->integer('last_activity')->index();
-        });
-    }
-
-    public function down(): void
-    {
-        Schema::dropIfExists('sessions');
-    }
-};
-PHP
-        );
-
-        $cacheTable = $migrationsDir . '/0001_01_01_000001_create_cache_table.php';
-        if (!file_exists($cacheTable)) {
-            file_put_contents($cacheTable, <<<'PHP'
-<?php
-
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-
-return new class extends Migration
-{
-    public function up(): void
-    {
-        Schema::create('cache', function (Blueprint $table) {
-            $table->string('key')->primary();
-            $table->mediumText('value');
-            $table->integer('expiration');
-        });
-
-        Schema::create('cache_locks', function (Blueprint $table) {
-            $table->string('key')->primary();
-            $table->string('owner');
-            $table->integer('expiration');
-        });
-    }
-
-    public function down(): void
-    {
-        Schema::dropIfExists('cache_locks');
-        Schema::dropIfExists('cache');
-    }
-};
-PHP
-        );
-
-        $jobsTable = $migrationsDir . '/0001_01_01_000002_create_jobs_table.php';
-        if (!file_exists($jobsTable)) {
-            file_put_contents($jobsTable, <<<'PHP'
-<?php
-
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-
-return new class extends Migration
-{
-    public function up(): void
-    {
-        Schema::create('jobs', function (Blueprint $table) {
-            $table->id();
-            $table->string('queue')->index();
-            $table->longText('payload');
-            $table->unsignedTinyInteger('attempts');
-            $table->unsignedInteger('reserved_at')->nullable();
-            $table->unsignedInteger('available_at');
-            $table->unsignedInteger('created_at');
-        });
-
-        Schema::create('job_batches', function (Blueprint $table) {
-            $table->string('id')->primary();
-            $table->string('name');
-            $table->integer('total_jobs');
-            $table->integer('pending_jobs');
-            $table->integer('failed_jobs');
-            $table->longText('failed_job_ids');
-            $table->mediumText('options')->nullable();
-            $table->integer('cancelled_at')->nullable();
-            $table->integer('created_at');
-            $table->integer('finished_at')->nullable();
-        });
-
-        Schema::create('failed_jobs', function (Blueprint $table) {
-            $table->id();
-            $table->string('uuid')->unique();
-            $table->text('connection');
-            $table->text('queue');
-            $table->longText('payload');
-            $table->longText('exception');
-            $table->timestamp('failed_at')->useCurrent();
-        });
-    }
-
-    public function down(): void
-    {
-        Schema::dropIfExists('failed_jobs');
-        Schema::dropIfExists('job_batches');
-        Schema::dropIfExists('jobs');
-    }
-};
-PHP
-        );
-
-        return null;
-    }
-
-    protected function runMigrations(string $workspacePath): void
-    {
-        $php = PHP_BINARY;
-
-        file_put_contents("{$workspacePath}/database/database.sqlite", '');
-
-        shell_exec("cd " . escapeshellarg($workspacePath) . " && {$php} artisan key:generate --force 2>&1");
-        shell_exec("cd " . escapeshellarg($workspacePath) . " && {$php} artisan migrate --force 2>&1");
+PHP;
     }
 
     protected function findAvailablePort(): ?int
@@ -471,19 +476,10 @@ PHP
         File::put($logFile, '');
 
         $php = PHP_BINARY;
-        $cmd = "{$php} artisan serve --port={$port} --host=127.0.0.1";
+        $helper = base_path('app/serve-helper.php');
 
-        $descriptors = [
-            0 => ['pipe', 'r'],
-            1 => ['file', $logFile, 'w'],
-            2 => ['file', $logFile, 'a'],
-        ];
-
-        $process = proc_open($cmd, $descriptors, $pipes, $workspacePath);
-
-        if (is_resource($process)) {
-            fclose($pipes[0]);
-        }
+        $cmd = "start /B php " . escapeshellarg($helper) . " " . escapeshellarg($workspacePath) . " {$port} " . escapeshellarg($logFile);
+        pclose(popen($cmd, 'r'));
     }
 
     protected function trackServer(string $uuid, int $port): void

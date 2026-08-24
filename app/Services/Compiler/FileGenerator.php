@@ -212,6 +212,9 @@ class FileGenerator
             if (in_array($field['type'], ['id', 'timestamps', 'softDeletes'])) {
                 continue;
             }
+            if (strtolower($field['name'] ?? '') === 'id') {
+                continue;
+            }
 
             $lines[] = $this->buildColumnLine($field);
         }
