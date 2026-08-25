@@ -121,6 +121,7 @@ class ServeController extends Controller
             'routes/api.php' => "<?php\n\nuse Illuminate\\Support\\Facades\\Route;\n",
             'routes/console.php' => "<?php\n",
             'public/index.php' => $this->skeletonPublicIndex(),
+            'bootstrap/providers.php' => $this->skeletonProviders(),
             'config/database.php' => $this->skeletonConfigDatabase(),
             'config/logging.php' => $this->skeletonConfigLogging(),
             'config/services.php' => $this->skeletonConfigServices(),
@@ -355,6 +356,18 @@ require __DIR__.'/../vendor/autoload.php';
 
 (require_once __DIR__.'/../bootstrap/app.php')
     ->handleRequest(Request::capture());
+PHP;
+    }
+
+    protected function skeletonProviders(): string
+    {
+        return <<<'PHP'
+<?php
+
+return [
+    App\Providers\AppServiceProvider::class,
+    App\Providers\Filament\AdminPanelProvider::class,
+];
 PHP;
     }
 

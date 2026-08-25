@@ -57,6 +57,7 @@ class WorkspaceGenerator
         $this->filesystem->put("{$workspacePath}/routes/api.php", $this->generateRoutesApi());
         $this->filesystem->put("{$workspacePath}/routes/console.php", $this->generateRoutesConsole());
         $this->filesystem->put("{$workspacePath}/public/index.php", $this->generatePublicIndex());
+        $this->filesystem->put("{$workspacePath}/bootstrap/providers.php", $this->generateProviders());
         $this->generateBaseMigrations($workspacePath);
 
         return [
@@ -354,6 +355,18 @@ PHP;
     {
         return <<<'PHP'
 <?php
+PHP;
+    }
+
+    protected function generateProviders(): string
+    {
+        return <<<'PHP'
+<?php
+
+return [
+    App\Providers\AppServiceProvider::class,
+    App\Providers\Filament\AdminPanelProvider::class,
+];
 PHP;
     }
 
