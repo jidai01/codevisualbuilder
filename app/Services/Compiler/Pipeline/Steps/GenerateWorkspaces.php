@@ -27,6 +27,8 @@ class GenerateWorkspaces
 
         file_put_contents("{$workspace['path']}/database/database.sqlite", '');
 
+        shell_exec("cd " . escapeshellarg($workspace['path']) . " && composer dump-autoload --no-scripts 2>&1");
+
         $this->installDependencies($workspace['path']);
         $this->runMigrations($workspace['path']);
 

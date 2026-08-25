@@ -287,19 +287,19 @@ PHP;
             },
             "autoload": {
                 "psr-4": {
-                    "App\\\\": "app/",
-                    "Database\\\\Factories\\\\": "database/factories/",
-                    "Database\\\\Seeders\\\\": "database/seeders/"
+                    "App\\": "app/",
+                    "Database\\Factories\\": "database/factories/",
+                    "Database\\Seeders\\": "database/seeders/"
                 }
             },
             "autoload-dev": {
                 "psr-4": {
-                    "Tests\\\\": "tests/"
+                    "Tests\\": "tests/"
                 }
             },
             "scripts": {
                 "post-autoload-dump": [
-                    "Illuminate\\\\Foundation\\\\ComposerScripts::postAutoloadDump",
+                    "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
                     "@php artisan package:discover --ansi"
                 ]
             },
