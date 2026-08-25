@@ -127,7 +127,7 @@ function Canvas() {
       const res = await fetch(`/api/workspace/${workspaceUuid}/serve`, { method: 'POST' });
       const data = await res.json();
       if (data.url) {
-        setPreviewUrl(data.url);
+        setPreviewUrl(data.url + '/admin');
         setActiveTab('preview');
       } else {
         Swal.fire({
